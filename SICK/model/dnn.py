@@ -1,25 +1,33 @@
 import torch
 import torch.nn as nn
+from transformers import AutoModel, AutoConfig
 
-class EmbeddingDNNClassifier(nn.Module):
-    def __init__(self, vocab_size, embed_dim, num_classes, dropout=0.5):
-        super(EmbeddingDNNClassifier, self).__init__()
-        
-        self.embedding_A = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
-        self.embedding_B = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
-       
+class DeBERTaDNNClassifier(nn.Module):
+    def __init__(self, model_name, num_labels, dropout_rate=0.1):
+        super(DeBERTaDNNClassifier, self).__init__()
+        self.config = AutoConfig.from_pretrained(model_name)
+
+        self.deberta_A = AutoModel.from_pretrained(model_name, config=self.config)
+        self.deberta_B = AutoModel.from_pretrained(model_name, config=self.config)
+        for param in self.deberta_A.parameters():
+            param.requires_grad = False
+        for param in self.deberta_B.parameters():
+            param.requires_grad = False
+
+        self.dropout = nn.Dropout(dropout_rate)
         self.fc = nn.Sequential(
-            nn.Linear(embed_dim * 2, embed_dim),
+            nn.Linear(self.config.hidden_size * 2, 256),
             nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(embed_dim, num_classes)
+            nn.Dropout(dropout_rate),
+            nn.Linear(256, num_labels)
         )
         
-    def forward(self, ids_A, ids_B):
-        emb_A = self.embedding_A(ids_A)
-        emb_B = self.embedding_B(ids_B)
-        pooled_A = emb_A.mean(dim=1)
-        pooled_B = emb_B.mean(dim=1)
-        features = torch.cat([pooled_A, pooled_B], dim=1)  
+    def forward(self, input_ids_A, attention_mask_A, input_ids_B, attention_mask_B):
+        outputs_A = self.deberta_A(input_ids=input_ids_A, attention_mask=attention_mask_A)
+        pooled_A = outputs_A.pooler_output  # (batch, hidden_size)
+        outputs_B = self.deberta_B(input_ids=input_ids_B, attention_mask=attention_mask_B)
+        pooled_B = outputs_B.pooler_output  # (batch, hidden_size)
+        features = torch.cat([pooled_A, pooled_B], dim=1)  # (batch, 2 * hidden_size)
+        features = self.dropout(features)
         logits = self.fc(features)
         return logits
