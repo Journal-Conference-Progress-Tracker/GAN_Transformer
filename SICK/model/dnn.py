@@ -1,8 +1,42 @@
 import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoConfig
+from torch import optim
+from sklearn.metrics import accuracy_score
 
 
+def train_and_evaluate_dnn(model, train_loader, test_loader, num_epochs, lr, device):
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    for epoch in range(1, num_epochs+1):
+        model.train()
+        running_loss, correct, total = 0.0, 0, 0
+        for batch_x, batch_y in train_loader:
+            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            optimizer.zero_grad()
+            outputs = model(batch_x)
+            loss = criterion(outputs, batch_y)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item() * batch_y.size(0)
+            _, preds = torch.max(outputs, 1)
+            correct += (preds == batch_y).sum().item()
+            total += batch_y.size(0)
+        train_loss = running_loss / total
+        train_acc = correct / total
+        print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}")
+    # Evaluate
+    model.eval()
+    all_preds, all_labels = [], []
+    with torch.no_grad():
+        for batch_x, batch_y in test_loader:
+            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            outputs = model(batch_x)
+            _, preds = torch.max(outputs, 1)
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(batch_y.cpu().numpy())
+    test_acc = accuracy_score(all_labels, all_preds)
+    return test_acc, all_preds, all_labels
 
 class DNNClassifier(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_classes, dropout=0.5):

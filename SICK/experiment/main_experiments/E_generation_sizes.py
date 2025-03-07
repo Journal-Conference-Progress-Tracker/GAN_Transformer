@@ -42,6 +42,8 @@ sample_sizes = [20, 50, 100, 200, 1000, len(train_ds)]
 knn_accuracy_before = {gen_size: {} for gen_size in generation_sizes}
 knn_accuracy_after = {gen_size: {} for gen_size in generation_sizes}
 
+
+
 # Iterate through generation sizes
 for generation_size in generation_sizes:
     print(f"\nTraining with Generation Size: {generation_size}")
@@ -57,6 +59,8 @@ for generation_size in generation_sizes:
         pred_before = knn_real.predict(test_x)
         acc_before = accuracy_score(test_y, pred_before)
         knn_accuracy_before[generation_size][size] = acc_before
+
+
 
         # Prepare GAN data loader
         train_subset = Subset(train_ds, range(size))
@@ -117,5 +121,5 @@ summary_df = pd.DataFrame(
 )
 
 # Display the accuracy summary
-display_accuracy_summary(summary_df)
-save_table_as_image(summary_df, file_name="generation_sizes_accuracy.png")
+display_accuracy_summary(summary_df, file_name="../../figure/generation_sizes_accuracy_plot.png")
+save_table_as_image(summary_df, file_name="../../figure/generation_sizes_accuracy.png")

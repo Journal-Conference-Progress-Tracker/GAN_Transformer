@@ -1,5 +1,105 @@
-from torch import nn
 import torch
+from torch import nn, optim
+from torch.utils.data import DataLoader
+import numpy as np
+class GANManager:
+    def __init__(
+            self,
+            generator: nn.Module,
+            discriminator: nn.Module,
+            gan_loader: DataLoader,
+            gan_epochs: int,
+            latent_dim: int,
+            device: torch.device,
+            verbosity: int = 1  # Default verbosity level is 1 (basic logging)
+        ):
+        self.generator = generator
+        self.discriminator = discriminator
+        self.gan_loader = gan_loader
+        self.gan_epochs = gan_epochs
+        self.device = device
+        self.latent_dim = latent_dim
+        self.verbosity = verbosity  # Level of verbosity for printing logs
+    def generate(self, unique_labels, generation_size):
+            
+        synthetic_data_list = []
+        synthetic_labels_list = []
+        for lab in unique_labels:
+            lab_tensor = torch.full((generation_size,), lab, dtype=torch.long, device=self.device)
+            z = torch.randn(generation_size, self.latent_dim, device=self.device)
+            synth = self.generator(z, lab_tensor).cpu().detach().numpy()
+            synthetic_data_list.append(synth)
+            synthetic_labels_list.append(np.full((generation_size,), lab))
+                
+        synthetic_x = np.concatenate(synthetic_data_list, axis=0)
+        synthetic_y = np.concatenate(synthetic_labels_list, axis=0)
+        return synthetic_x, synthetic_y
+    
+    def train(self) -> list:
+        '''
+        Train the GAN model and return a list of losses (D_loss, G_loss).
+        
+        Arguments:
+        - verbosity: (int) controls the verbosity of the training output
+            - 0: silent (no output)
+            - 1: basic output (epoch-wise losses)
+            - 2: detailed output (including per-batch losses)
+        '''
+        self.generator.train()
+        self.discriminator.train()
+
+        adversarial_loss = nn.BCELoss().to(self.device)
+        optimizer_G = optim.Adam(self.generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+        optimizer_D = optim.Adam(self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+
+        losses = []  # List to store losses
+
+        # Loop through the number of epochs
+        for epoch in range(self.gan_epochs):
+            d_loss_epoch, g_loss_epoch = 0.0, 0.0  # Initialize epoch losses
+
+            # Loop through each batch in the DataLoader
+            for embeddings, labels in self.gan_loader:
+                embeddings = embeddings.to(self.device)  # Move data to device (GPU/CPU)
+                labels = labels.clone().detach().to(self.device).long()
+                b_size = embeddings.size(0)  # Get batch size
+
+                valid = torch.ones(b_size, 1, device=self.device)  # Labels for real data
+                fake = torch.zeros(b_size, 1, device=self.device)  # Labels for fake data
+
+                # Train Generator
+                optimizer_G.zero_grad()  # Zero the gradients for the generator
+                z = torch.randn(b_size, self.latent_dim, device=self.device)  # Generate random latent vector
+                gen_data = self.generator(z, labels)  # Generate fake data using the generator
+                g_loss = adversarial_loss(self.discriminator(gen_data, labels), valid)  # Calculate generator loss
+                g_loss.backward()  # Backpropagate the generator loss
+                optimizer_G.step()  # Update generator parameters
+
+                # Train Discriminator
+                optimizer_D.zero_grad()  # Zero the gradients for the discriminator
+                real_loss = adversarial_loss(self.discriminator(embeddings, labels), valid)  # Real data loss
+                fake_loss = adversarial_loss(self.discriminator(gen_data.detach(), labels), fake)  # Fake data loss
+                d_loss = (real_loss + fake_loss) / 2  # Average loss for discriminator
+                d_loss.backward()  # Backpropagate the discriminator loss
+                optimizer_D.step()  # Update discriminator parameters
+
+                d_loss_epoch += d_loss.item()  # Accumulate discriminator loss
+                g_loss_epoch += g_loss.item()  # Accumulate generator loss
+
+                # Verbosity: print detailed per-batch loss if verbosity level is 2
+                if self.verbosity == 2:
+                    print(f"  [Batch] D loss: {d_loss.item():.4f}, G loss: {g_loss.item():.4f}")
+
+            # Verbosity: print epoch-wise losses based on verbosity level
+            if self.verbosity > 0:
+                print(f"[GAN Epoch {epoch+1}/{self.gan_epochs}] D loss: {d_loss_epoch/len(self.gan_loader):.4f}, G loss: {g_loss_epoch/len(self.gan_loader):.4f}")
+
+            losses.append((d_loss_epoch / len(self.gan_loader), g_loss_epoch / len(self.gan_loader)))  # Store average losses for each epoch
+
+        self.generator.eval()
+        self.discriminator.eval()
+
+        return losses
 
 
 class Generator(nn.Module):
