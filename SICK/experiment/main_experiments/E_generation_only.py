@@ -114,5 +114,15 @@ summary_df = pd.DataFrame(
 )
 
 # Display the accuracy summary
-display_accuracy_summary(summary_df, file_name="../../figure/table/generation_only_accuracy_plot.png")
-save_table_as_image(summary_df, file_name="../../figure/table/generation_only_accuracy.png")
+display_accuracy_summary(
+    summary_df, 
+    title = "Accuracy Comparisons: Real Datasets v.s. Generated Datasets as input",
+    bar2_name="Generated Only",
+    file_name="../../figure/table/generation_only_accuracy_plot.png"
+)
+save_table_as_image(
+    summary_df, 
+    title = "Accuracy Comparisons: Real Datasets v.s. Generated Datasets as input",
+    bar2_name="Generated Only",
+    file_name="../../figure/table/generation_only_accuracy.png"
+)
