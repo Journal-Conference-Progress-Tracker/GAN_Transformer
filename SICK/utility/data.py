@@ -52,6 +52,20 @@ def compute_deberta_embedding(examples, device):
     return {"embedding": mean_pooled}
 
 
+def get_loader(dataset, batch_size=32, shuffle=True):
+    return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+
+class EmbeddingDataset(torch.utils.data.Dataset):
+    def __init__(self, hf_dataset):
+        self.embeddings = hf_dataset["embedding"]
+        self.labels = hf_dataset["labels"]
+    def __len__(self):
+        return len(self.embeddings)
+    def __getitem__(self, idx):
+        emb = torch.tensor(self.embeddings[idx], dtype=torch.float)
+        label = self.labels[idx]
+        return emb, label
+
 class HFDatasetWrapper(Dataset):
     """
     Wrap a Hugging Face Dataset so it behaves like a PyTorch Dataset.

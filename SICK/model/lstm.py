@@ -1,6 +1,20 @@
 import torch
 import torch.nn as nn
+class LSTMClassifier(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_classes, dropout=0.5):
+        super(LSTMClassifier, self).__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_dim, num_classes)
 
+    def forward(self, x):
+        # x shape: (batch, input_dim) => (batch, seq_len=1, input_dim)
+        x = x.unsqueeze(1)  
+        out, (h, c) = self.lstm(x)  # out: (batch, 1, hidden_dim), h: (1, batch, hidden_dim)
+        h_last = h[-1]
+        out = self.dropout(h_last)
+        out = self.fc(out)
+        return out
 class EmbeddingLSTMClassifier(nn.Module):
     def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes, max_length, dropout=0.5):
 
