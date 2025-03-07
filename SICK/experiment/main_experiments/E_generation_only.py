@@ -110,7 +110,7 @@ for generation_size in generation_sizes:
 # Create DataFrame for summary
 summary_df = pd.DataFrame(
     summary_data,
-    columns=["Generation Size", "Train Samples", "Real Only Accuracy", "After Concatenation Accuracy"]
+    columns=["Generation Size", "Train Samples", "Real Only Accuracy", "Generated Only"]
 )
 
 # Display the accuracy summary
