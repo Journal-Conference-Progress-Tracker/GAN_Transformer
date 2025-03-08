@@ -3,9 +3,60 @@ import torch.nn as nn
 from transformers import AutoModel, AutoConfig
 from torch import optim
 from sklearn.metrics import accuracy_score
+class DNN:
+    def __init__(
+            self,
+            input_dim,
+            hidden_dim,
+            num_classes,
+            num_epochs,
+            device,
+            lr = 3e-4
+            ):
+        self.dnn = DNNClassifier(input_dim, hidden_dim, num_classes).to(device)
+        self.lr = lr
+        self.num_epochs = num_epochs
+        self.device = device
 
+    def fit(self, train_loader):
+        self.dnn.train()
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(self.dnn.parameters(), lr=self.lr)
+        for epoch in range(1, self.num_epochs+1):
+            self.dnn.train()
+            running_loss, correct, total = 0.0, 0, 0
+            for batch_x, batch_y in train_loader:
+                batch_x, batch_y = \
+                      batch_x.to(self.device), batch_y.to(self.device)
+                batch_x, batch_y = batch_x.to(torch.float32), batch_y.to(torch.int64)
+                optimizer.zero_grad()
+                outputs = self.dnn(batch_x)
+                loss = criterion(outputs, batch_y)
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item() * batch_y.size(0)
+                _, preds = torch.max(outputs, 1)
+                correct += (preds == batch_y).sum().item()
+                total += batch_y.size(0)
+            train_loss = running_loss / total
+            train_acc = correct / total
+            print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}")
+        # Evaluate
+        self.dnn.eval()
+    def predict(self, x):
+        input_x = torch.tensor(x).to(self.device).float()
+        pred = self.dnn(input_x).cpu().detach()
+        return torch.argmax(pred, 1).numpy()
+    def eval(self, x, y_hat, metric=accuracy_score):
+        y_pred = self.predict(x)
+        return metric(y_pred, y_hat)
+    def fit_and_eval(self, train_loader, test_x, test_y, metric=accuracy_score):
+        self.fit(train_loader)
+        return self.eval(test_x, test_y, metric)
+    
 
 def train_and_evaluate_dnn(model, train_loader, test_loader, num_epochs, lr, device):
+    model.train()
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     for epoch in range(1, num_epochs+1):

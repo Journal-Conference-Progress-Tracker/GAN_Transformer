@@ -43,7 +43,7 @@ test_ds = EmbeddingDataset(test_dataset)
 test_loader = get_loader(test_ds, batch_size=batch_size, shuffle=False)  
 
 # Define a list of training sample sizes
-sample_sizes = [20, 50, 100, 200, 1000, len(train_ds)]
+sample_sizes = [100, 200, 500, 1000, len(train_ds)]
 
 # List to collect results; each entry will be a dict for one (sample_size, generation_size) combo.
 summary_data = []
@@ -59,24 +59,18 @@ for generation_size in generation_sizes:
         y_train = train_y_full[:size]
 
         # Evaluate baseline KNN accuracy on real data
-        real_acc = KNN().fit_and_eval(X_train, y_train, test_x, test_y)
 
         synthetic_x_smote, synthetic_y_smote = conditional_smote_sampling(
             X_train, y_train, generation_size, condition=[0, 1, 2]
         )
-        smote_acc = KNN().fit_and_eval(synthetic_x_smote, synthetic_y_smote, test_x, test_y)
 
         synthetic_x_kde, synthetic_y_kde = conditional_kde_sampling(
             X_train, y_train, generation_size, n_components=min(X_train.shape[1] - 1, generation_size - 1), condition=[0, 1, 2]
         )
-        kde_acc = KNN().fit_and_eval(synthetic_x_kde, synthetic_y_kde, test_x, test_y)
 
         synthetic_x_gmm, synthetic_y_gmm = conditional_gmm_sampling(
             X_train, y_train, generation_size, condition=[0, 1, 2]
         )
-        gmm_acc = KNN().fit_and_eval(synthetic_x_gmm, synthetic_y_gmm, test_x, test_y)
-
-
         train_subset = Subset(train_ds, range(size))
         gan_loader = get_loader(train_subset, batch_size=batch_size, shuffle=True)
         # Assuming GANs.generate takes (training_data, batch_size, X_train, y_train, full_train_y, latent_dim, condition_dim, device, gan_epochs)
@@ -91,6 +85,11 @@ for generation_size in generation_sizes:
             device,
             gan_epochs
         ).generate(size, generation_size)
+
+        real_acc = KNN().fit_and_eval(X_train, y_train, test_x, test_y)
+        smote_acc = KNN().fit_and_eval(synthetic_x_smote, synthetic_y_smote, test_x, test_y)
+        kde_acc = KNN().fit_and_eval(synthetic_x_kde, synthetic_y_kde, test_x, test_y)
+        gmm_acc = KNN().fit_and_eval(synthetic_x_gmm, synthetic_y_gmm, test_x, test_y)
         gan_acc = KNN().fit_and_eval(synthetic_x_gen, synthetic_y_gen, test_x, test_y)
         
         # Append the results for the current configuration

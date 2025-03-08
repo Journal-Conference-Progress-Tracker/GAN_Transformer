@@ -7,7 +7,6 @@ from utility.data import get_loader
 class GANs:
     def __init__(
         self,
-        train_ds,
         batch_size,
         X_train,
         y_train,
@@ -17,7 +16,6 @@ class GANs:
         device,
         gan_epochs,
         ):
-        self.train_ds = train_ds
         self.batch_size = batch_size
         self.X_train = X_train
         self.y_train = y_train
@@ -26,9 +24,8 @@ class GANs:
         self.condition_dim = condition_dim
         self.device = device
         self.gan_epochs = gan_epochs
-    def generate(self, size, generation_size):
-        train_subset = Subset(self.train_ds, range(size))
-        gan_loader = get_loader(train_subset, batch_size=self.batch_size, shuffle=True)
+    def generate(self, gan_loader, generation_size):
+        
         input_dim = self.X_train.shape[1]  
         unique_labels = np.unique(self.train_y_full)
         num_classes_gan = len(unique_labels)
