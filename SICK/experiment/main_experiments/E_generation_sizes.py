@@ -6,13 +6,11 @@ parent_dir = os.path.join(os.getcwd(), '..', '..')
 if parent_dir not in sys.path: sys.path.append(parent_dir)
 from utility.data import get_loader, EmbeddingDataset
 from utility.visuals import *
-from model.gan import Generator, Discriminator, GANManager
-
+from model.gan import GANs
+from model.knn import KNN
 import torch
 from torch.utils.data import Subset
 from datasets import load_from_disk
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import accuracy_score
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 latent_dim = 128          
@@ -46,7 +44,7 @@ accuracy_after_title = []
 
 # Iterate through generation sizes
 for generation_size in generation_sizes:
-    knn_accracy_after_gen = {}
+    knn_accuracy_after_gen = {}
     print(f"\nTraining with Generation Size: {generation_size}")
     
     for size in sample_sizes:
@@ -55,13 +53,9 @@ for generation_size in generation_sizes:
         y_train = train_y_full[:size]
 
         # KNN on real data
-        knn_real = KNeighborsClassifier(n_neighbors=1, n_jobs=-1)
-        knn_real.fit(X_train, y_train)
-        pred_before = knn_real.predict(test_x)
-        acc_before = accuracy_score(test_y, pred_before)
-        knn_accuracy_before[size] = acc_before
-
-
+        
+        knn_accuracy_before[size] = \
+            KNN().fit_and_eval(X_train, y_train, test_x, test_y)
 
         # Prepare GAN data loader
         train_subset = Subset(train_ds, range(size))
@@ -69,39 +63,26 @@ for generation_size in generation_sizes:
         input_dim = X_train.shape[1]  
         unique_labels = np.unique(train_y_full)
         num_classes_gan = len(unique_labels)
-
-        # Create and train GAN model
-        generator = Generator(
-            latent_dim=latent_dim,
-            condition_dim=condition_dim,
-            num_classes=num_classes_gan,
-            start_dim=latent_dim * 2,
-            n_layer=3,
-            output_dim=input_dim
-        ).to(device)
-        discriminator = Discriminator(
-            condition_dim=condition_dim,
-            num_classes=num_classes_gan,
-            start_dim=256,
-            n_layer=3,
-            input_dim=input_dim
-        ).to(device)
-
-        manager = GANManager(generator, discriminator, gan_loader, gan_epochs, latent_dim, device)
-        manager.train()
-        synthetic_x, synthetic_y = manager.generate(unique_labels, generation_size)
-
-        # Combine real and synthetic data
+        synthetic_x, synthetic_y = GANs(
+            train_ds,
+            batch_size,
+            X_train,
+            y_train,
+            train_y_full,
+            latent_dim,
+            condition_dim,
+            device,
+            gan_epochs
+        ).generate(size, generation_size)
         train_combined_x = np.concatenate([X_train, synthetic_x], axis=0)
         train_combined_y = np.concatenate([y_train, synthetic_y], axis=0)
 
         # KNN on augmented data (real + synthetic)
-        knn_aug = KNeighborsClassifier(n_neighbors=5, n_jobs=-1)
-        knn_aug.fit(train_combined_x, train_combined_y)
-        pred_after = knn_aug.predict(test_x)
-        acc_after = accuracy_score(test_y, pred_after)
-        knn_accracy_after_gen[size] = acc_after
-    knn_accuracy_after.append(knn_accracy_after_gen)
+        knn_accuracy_after_gen[size] = \
+            KNN().fit_and_eval(
+                train_combined_x, train_combined_y, test_x, test_y
+            )
+    knn_accuracy_after.append(knn_accuracy_after_gen)
     accuracy_after_title.append(f"After Concatenation Accuracy with size of {generation_size}")
 # Now create the final summary DataFrame
 summary_data = []
@@ -121,5 +102,5 @@ summary_df = pd.DataFrame(
 
 summary_df.to_csv("g_sizes.csv", index=False)
 # Display the accuracy summary
-display_accuracy_summary_with_more_than_two_bars(summary_df, file_name="../../figure/generation_sizes_accuracy_plot.png")
-save_table_as_image(summary_df, file_name="../../figure/generation_sizes_accuracy.png")
+# display_accuracy_summary_with_more_than_two_bars(summary_df, file_name="../../figure/generation_sizes_accuracy_plot.png")
+# save_table_as_image(summary_df, file_name="../../figure/generation_sizes_accuracy.png")

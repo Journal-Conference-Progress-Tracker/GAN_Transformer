@@ -1,7 +1,61 @@
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
+from torch.utils.data import Subset
 import numpy as np
+from utility.data import get_loader
+class GANs:
+    def __init__(
+        self,
+        train_ds,
+        batch_size,
+        X_train,
+        y_train,
+        train_y_full,
+        latent_dim,
+        condition_dim,
+        device,
+        gan_epochs,
+        ):
+        self.train_ds = train_ds
+        self.batch_size = batch_size
+        self.X_train = X_train
+        self.y_train = y_train
+        self.train_y_full = train_y_full
+        self.latent_dim = latent_dim
+        self.condition_dim = condition_dim
+        self.device = device
+        self.gan_epochs = gan_epochs
+    def generate(self, size, generation_size):
+        train_subset = Subset(self.train_ds, range(size))
+        gan_loader = get_loader(train_subset, batch_size=self.batch_size, shuffle=True)
+        input_dim = self.X_train.shape[1]  
+        unique_labels = np.unique(self.train_y_full)
+        num_classes_gan = len(unique_labels)
+
+        # Create and train GAN model
+        generator = Generator(
+            latent_dim=self.latent_dim,
+            condition_dim=self.condition_dim,
+            num_classes=num_classes_gan,
+            start_dim=self.latent_dim * 2,
+            n_layer=3,
+            output_dim=input_dim
+        ).to(self.device)
+        discriminator = Discriminator(
+            condition_dim=self.condition_dim,
+            num_classes=num_classes_gan,
+            start_dim=256,
+            n_layer=3,
+            input_dim=input_dim
+        ).to(self.device)
+
+        manager = GANManager(generator, discriminator, gan_loader, self.gan_epochs, self.latent_dim, self.device)
+        manager.train()
+        synthetic_x, synthetic_y = manager.generate(unique_labels, generation_size)
+        return synthetic_x, synthetic_y
+
+
 class GANManager:
     def __init__(
             self,
