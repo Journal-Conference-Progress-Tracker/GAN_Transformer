@@ -3,20 +3,28 @@ import sys
 import numpy as np
 import pandas as pd
 parent_dir = os.path.join(os.getcwd(), '..', '..')
-if parent_dir not in sys.path: sys.path.append(parent_dir)
+if parent_dir not in sys.path: 
+    sys.path.append(parent_dir)
+
 from utility.data import get_loader, EmbeddingDataset
 from utility.visuals import *
 from model.gan import GANs
 from model.knn import KNN
+from model.data_augmentation_tech import (
+    conditional_smote_sampling, 
+    conditional_kde_sampling, 
+    conditional_gmm_sampling
+)
 import torch
 from torch.utils.data import Subset
 from datasets import load_from_disk
 
+# Device and parameters
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 latent_dim = 128          
 condition_dim = 10        
-gan_epochs = 20            
-generation_sizes = [1000, 10000]  # Multiple generation sizes
+gan_epochs = 200       
+generation_sizes = [1000, 10000]  # Multiple generation sizes for synthetic generation
 batch_size = 32                
 
 # Load dataset and split into train and test
@@ -34,36 +42,45 @@ train_ds = EmbeddingDataset(train_dataset)
 test_ds = EmbeddingDataset(test_dataset)
 test_loader = get_loader(test_ds, batch_size=batch_size, shuffle=False)  
 
+# Define a list of training sample sizes
 sample_sizes = [20, 50, 100, 200, 1000, len(train_ds)]
 
-# Initialize dictionaries to store the results
-knn_accuracy_before = {}
-knn_accuracy_after = []
-accuracy_after_title = []
+# List to collect results; each entry will be a dict for one (sample_size, generation_size) combo.
+summary_data = []
 
-
-# Iterate through generation sizes
+# Iterate over each generation size (for synthetic data generation)...
 for generation_size in generation_sizes:
-    knn_accuracy_after_gen = {}
-    print(f"\nTraining with Generation Size: {generation_size}")
-    
+    print(f"\n=== Generation Size: {generation_size} ===")
+    # For each training sample size...
     for size in sample_sizes:
-        print(f"\n[Real Data Only] Training size: {size}")
+        print(f"\n[Train Data] Sample size: {size}")
+        # Get real training data for current size
         X_train = train_x_full[:size]
         y_train = train_y_full[:size]
 
-        # KNN on real data
-        
-        knn_accuracy_before[size] = \
-            KNN().fit_and_eval(X_train, y_train, test_x, test_y)
+        # Evaluate baseline KNN accuracy on real data
+        real_acc = KNN().fit_and_eval(X_train, y_train, test_x, test_y)
 
-        # Prepare GAN data loader
+        synthetic_x_smote, synthetic_y_smote = conditional_smote_sampling(
+            X_train, y_train, generation_size, condition=[0, 1, 2]
+        )
+        smote_acc = KNN().fit_and_eval(synthetic_x_smote, synthetic_y_smote, test_x, test_y)
+
+        synthetic_x_kde, synthetic_y_kde = conditional_kde_sampling(
+            X_train, y_train, generation_size, n_components=min(X_train.shape[1] - 1, generation_size - 1), condition=[0, 1, 2]
+        )
+        kde_acc = KNN().fit_and_eval(synthetic_x_kde, synthetic_y_kde, test_x, test_y)
+
+        synthetic_x_gmm, synthetic_y_gmm = conditional_gmm_sampling(
+            X_train, y_train, generation_size, condition=[0, 1, 2]
+        )
+        gmm_acc = KNN().fit_and_eval(synthetic_x_gmm, synthetic_y_gmm, test_x, test_y)
+
+
         train_subset = Subset(train_ds, range(size))
         gan_loader = get_loader(train_subset, batch_size=batch_size, shuffle=True)
-        input_dim = X_train.shape[1]  
-        unique_labels = np.unique(train_y_full)
-        num_classes_gan = len(unique_labels)
-        synthetic_x, synthetic_y = GANs(
+        # Assuming GANs.generate takes (training_data, batch_size, X_train, y_train, full_train_y, latent_dim, condition_dim, device, gan_epochs)
+        synthetic_x_gen, synthetic_y_gen = GANs(
             train_ds,
             batch_size,
             X_train,
@@ -74,39 +91,23 @@ for generation_size in generation_sizes:
             device,
             gan_epochs
         ).generate(size, generation_size)
+        gan_acc = KNN().fit_and_eval(synthetic_x_gen, synthetic_y_gen, test_x, test_y)
+        
+        # Append the results for the current configuration
+        summary_data.append({
+            "Train Samples": size,
+            "Generation Size": generation_size,
+            "Real Accuracy": real_acc,
+            "GAN Accuracy": gan_acc,
+            "SMOTE Accuracy": smote_acc,
+            "KDE Accuracy": kde_acc,
+            "GMM Accuracy": gmm_acc
+        })
 
-        # KNN on augmented data (real + synthetic)
-        knn_accuracy_after_gen[size] = \
-            KNN().fit_and_eval(
-                synthetic_x, synthetic_y, test_x, test_y
-            )
-    knn_accuracy_after.append(knn_accuracy_after_gen)
-    accuracy_after_title.append(f"After Concatenation Accuracy with size of {generation_size}")
-# Now create the final summary DataFrame
-summary_data = []
+# Create the summary DataFrame
+summary_df = pd.DataFrame(summary_data)
 
-for size in sample_sizes:
-    summary_data.append([
-        size,
-        knn_accuracy_before[size],
-        *[after[size] for after in knn_accuracy_after]
-    ])
+# Save to CSV
+summary_df.to_csv("augmentation_performance_sizes.csv", index=False)
 
-# Create DataFrame for summary
-summary_df = pd.DataFrame(
-    summary_data,
-    columns=["Train Samples", "Real Only Accuracy", *accuracy_after_title]
-)
-
-summary_df.to_csv("g_only.csv", index=False)
-# Display the accuracy summary
-# display_accuracy_summary_with_more_than_two_bars(
-#     summary_df, 
-#     title = "Accuracy Comparisons: Real Datasets v.s. Generated Datasets as input",
-#     file_name="../../figure/generation_only_accuracy_plot.png"
-# )
-# save_table_as_image(
-#     summary_df, 
-#     title = "Accuracy Comparisons: Real Datasets v.s. Generated Datasets as input",
-#     file_name="../../figure/generation_only_accuracy.png"
-# )
+print(summary_df)
