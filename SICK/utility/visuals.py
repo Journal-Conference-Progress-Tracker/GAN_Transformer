@@ -1,55 +1,155 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import textwrap
 def save_table_as_image(
         summary_df,
         file_name="accuracy_summary.png",
         title="Accuracy Comparisons: Real Only v.s. After Concatenation",
-        bar1_name="Real Only Accuracy",
-        bar2_name="After Concatenation Accuracy"
+        decimal_places=2,
+        max_col_width=20  # Maximum character width before wrapping
     ):
     """
-    Save the accuracy results as an image in ACM format.
+    Save the entire DataFrame as an image with properly wrapped headers.
+    - Wraps headers at spaces for better readability
+    - Rounds numerical values to `decimal_places`
+    - Adjusts row height dynamically based on header size
     """
-    # Prepare summary data for table
-    summary_data = []
+    # Round numerical values to the specified decimal places
+    summary_df = summary_df.copy()
+    for col in summary_df.select_dtypes(include=[np.number]).columns:
+        summary_df[col] = summary_df[col].apply(lambda x: f"{x:.{decimal_places}f}")
 
-    # Add generation size column if it exists
-    if "Generation Size" in summary_df.columns:
-        generation_sizes = summary_df["Generation Size"].unique()
-        for gen in generation_sizes:
-            df_gen = summary_df[summary_df["Generation Size"] == gen]
-            for _, row in df_gen.iterrows():
-                summary_data.append([gen, row["Train Samples"], row[bar1_name], row[bar2_name]])
-    else:
-        for _, row in summary_df.iterrows():
-            summary_data.append([None, row["Train Samples"], row[bar1_name], row[bar2_name]])
+    # Convert DataFrame to a list of lists for table display
+    summary_data = summary_df.values.tolist()
+    def wrap_header(header, width):
+        # Split the header into words
+        words = header.split(' ')
+        
+        # If the header is shorter than the max width, no wrapping is needed.
+        if len(header) <= width:
+            return header
 
-    # Create table header
-    table_header = ["Generation Size", "Train Samples", bar1_name, bar2_name]
-    
-    # Plot the table using matplotlib
-    fig, ax = plt.subplots(figsize=(12, 6))
+        lines = []
+        current_line = ""
+        
+        # Iterate through each word and build lines that do not exceed the max width.
+        for word in words:
+            # Check if adding the next word exceeds the width (account for a space if needed)
+            if len(current_line) + len(word) + (1 if current_line else 0) > width:
+                lines.append(current_line)
+                current_line = word
+            else:
+                # Add a space before the word if current_line is not empty
+                current_line = f"{current_line} {word}".strip()
+        
+        # Append the final line if it exists
+        if current_line:
+            lines.append(current_line)
+        
+        # Join the lines with newline characters for display
+        return "\n".join(lines)
+
+
+    wrapped_headers = [wrap_header(col, max_col_width) for col in summary_df.columns]
+
+    # Determine the maximum number of wrapped lines in any header
+    max_header_lines = max(len(header.split("\n")) for header in wrapped_headers)
+    # Define a header height factor (in inches) based on the number of lines.
+    # (Adjust the multiplier as needed based on your font size.)
+    header_height = 0.05 * max_header_lines
+
+    # Calculate figure dimensions based on data and header size
+    num_rows, num_cols = summary_df.shape
+    fig_width = max(10, num_cols * 1.5)
+    # Add extra height for the header rows
+    fig_height = max(6, num_rows * 0.5 + header_height + 0.5)
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis("tight")
     ax.axis("off")
 
-    # Create the table and display it
-    table = ax.table(cellText=summary_data, colLabels=table_header, loc="center", cellLoc="center", colColours=["#f5f5f5"] * len(table_header))
+    # Create the table
+    table = ax.table(
+        cellText=summary_data,
+        colLabels=wrapped_headers,
+        loc="center",
+        cellLoc="center",
+        colWidths=[max_col_width * 0.06 for _ in wrapped_headers]
+    )
 
-    # Set fonts
     table.auto_set_font_size(False)
-    table.set_fontsize(12)
-    table.scale(1.5, 1.5)  # Scale table for better readability
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)  # Scale the table for readability
 
-    # Title of the table
+    # Adjust the height of header cells (row 0) to match the header text
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_height(header_height)
+
+    # Set the table title
     ax.set_title(title, fontweight='bold', fontsize=16, family="Times New Roman")
 
-    # Save the table to a file (image)
+    plt.tight_layout()
+    plt.savefig(file_name, dpi=300, bbox_inches="tight")
+    print(f"Table has been saved as '{file_name}'")
+
+
+def display_accuracy_summary_with_more_than_two_bars(
+        summary_df,
+        x_label_title="Train Samples",
+        y_label="Accuracy",
+        title="Accuracy Comparisons: Real Only v.s. After Concatenation",
+        file_name="plot.png"
+    ):
+
+    print("\nAccuracy Summary:")
+    print(summary_df)
+    
+    # Set font to "Times New Roman"
+    plt.rcParams["font.family"] = "Times New Roman"
+    
+    num_categories = len(summary_df)  # Number of rows (x-axis categories)
+    num_bars = len(summary_df.columns) - 1  # Excluding "Train Samples"
+
+    fig, ax = plt.subplots(figsize=(max(8, num_bars * 1.5), 6))  # Adjust figure size based on bars
+    index = np.arange(num_categories)  # X-axis positions
+
+    # Dynamically calculate bar width based on number of bars
+    bar_width = max(0.1, min(0.8 / num_bars, 0.3))  # Ensures bars are well spaced
+
+    bar_columns = [col for col in summary_df.columns if col != "Train Samples"]  # Exclude x-axis label
+
+    # Plot bars with spacing adjustments
+    for i, column in enumerate(bar_columns):
+        ax.bar(index + i * bar_width, summary_df[column], bar_width, label=column)
+
+    # Customize plot
+    ax.set_xlabel(x_label_title)
+    ax.set_ylabel(y_label)
+    ax.set_yscale('log')
+    ax.set_title(title, fontweight='bold', fontsize=14)
+    
+    # Center x-axis ticks
+    ax.set_xticks(index + (num_bars - 1) * bar_width / 2)
+    ax.set_xticklabels(summary_df["Train Samples"])
+    
+    ax.legend()
+    ax.tick_params(axis="both", labelsize=12)
+
     plt.tight_layout()
     plt.savefig(file_name, dpi=300)
+    plt.show()
 
-    print(f"Table has been saved as '{file_name}'")
 
 def display_accuracy_summary(
         summary_df,
@@ -60,68 +160,33 @@ def display_accuracy_summary(
         bar1_name="Real Only Accuracy",
         bar2_name="After Concatenation Accuracy"
     ):
-    # Check if the DataFrame contains a "Generation Size" column
-    if "Generation Size" in summary_df.columns:
-        generation_sizes = summary_df["Generation Size"].unique()
-        for gen in generation_sizes:
-            # Filter the DataFrame for the current generation size
-            df_gen = summary_df[summary_df["Generation Size"] == gen]
-            print(f"\nAccuracy Summary for Generation Size = {gen}:")
-            print(df_gen)
-            
-            # Set the font to "Times New Roman"
-            plt.rcParams["font.family"] = "Times New Roman"
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            # Set positions for each group of bars
-            bar_width = 0.35
-            index = np.arange(len(df_gen))
-            
-            # Plot bars with updated colors
-            bar1 = ax.bar(index, df_gen[bar1_name], bar_width, label=bar1_name, color='#1f77b4')  # Soft blue
-            bar2 = ax.bar(index + bar_width, df_gen[bar2_name], bar_width, label=bar2_name, color='#ff7f0e')  # Soft orange
-            
-            # Customize plot
-            ax.set_xlabel(x_label_title)
-            ax.set_ylabel(y_label)
-            ax.set_yscale('log')
-            ax.set_title(f"{title}\nGeneration Size = {gen}", fontweight='bold', fontsize=14)
-            ax.set_xticks(index + bar_width / 2)
-            ax.set_xticklabels(df_gen["Train Samples"])
-            ax.legend()
-            
-            # Set the font for axis ticks
-            ax.tick_params(axis="both", labelsize=12)
-            
-            plt.tight_layout()
-    else:
-        # Original behavior if no "Generation Size" column exists
-        print("\nAccuracy Summary:")
-        print(summary_df)
-        
-        # Set the font to "Times New Roman"
-        plt.rcParams["font.family"] = "Times New Roman"
-        
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bar_width = 0.35
-        index = np.arange(len(summary_df))
-        
-        # Plot bars with updated colors
-        bar1 = ax.bar(index, summary_df[bar1_name], bar_width, label=bar1_name, color='#1f77b4')
-        bar2 = ax.bar(index + bar_width, summary_df[bar2_name], bar_width, label=bar2_name, color='#ff7f0e')
-        
-        # Customize plot
-        ax.set_xlabel(x_label_title)
-        ax.set_ylabel(y_label)
-        ax.set_yscale('log')
-        ax.set_title(title, fontweight='bold', fontsize=14)
-        ax.set_xticks(index + bar_width / 2)
-        ax.set_xticklabels(summary_df["Train Samples"])
-        ax.legend()
-        
-        ax.tick_params(axis="both", labelsize=12)
-        
-        plt.tight_layout()
+
+    print("\nAccuracy Summary:")
+    print(summary_df)
+    
+    # Set the font to "Times New Roman"
+    plt.rcParams["font.family"] = "Times New Roman"
+    
+    fig, ax = plt.subplots(figsize=(20, 6))
+    bar_width = 0.35
+    index = np.arange(len(summary_df))
+    
+    # Plot bars with updated colors
+    bar1 = ax.bar(index, summary_df[bar1_name], bar_width, label=bar1_name, color='#1f77b4')
+    bar2 = ax.bar(index + bar_width, summary_df[bar2_name], bar_width, label=bar2_name, color='#ff7f0e')
+    
+    # Customize plot
+    ax.set_xlabel(x_label_title)
+    ax.set_ylabel(y_label)
+    ax.set_yscale('log')
+    ax.set_title(title, fontweight='bold', fontsize=14)
+    ax.set_xticks(index + bar_width / 2)
+    ax.set_xticklabels(summary_df["Train Samples"])
+    ax.legend()
+    
+    ax.tick_params(axis="both", labelsize=12)
+    
+    plt.tight_layout()
 
     plt.savefig(file_name, dpi=300)
     plt.show()

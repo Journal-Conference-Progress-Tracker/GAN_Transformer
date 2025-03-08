@@ -39,11 +39,14 @@ test_loader = get_loader(test_ds, batch_size=batch_size, shuffle=False)
 sample_sizes = [20, 50, 100, 200, 1000, len(train_ds)]
 
 # Initialize dictionaries to store the results
-knn_accuracy_before = {gen_size: {} for gen_size in generation_sizes}
-knn_accuracy_after = {gen_size: {} for gen_size in generation_sizes}
+knn_accuracy_before = {}
+knn_accuracy_after = []
+accuracy_after_title = []
 
 # Iterate through generation sizes
 for generation_size in generation_sizes:
+    
+    knn_accracy_after_gen = {}
     print(f"\nTraining with Generation Size: {generation_size}")
     
     for size in sample_sizes:
@@ -56,7 +59,7 @@ for generation_size in generation_sizes:
         knn_real.fit(X_train, y_train)
         pred_before = knn_real.predict(test_x)
         acc_before = accuracy_score(test_y, pred_before)
-        knn_accuracy_before[generation_size][size] = acc_before
+        knn_accuracy_before[size] = acc_before
 
         # Prepare GAN data loader
         train_subset = Subset(train_ds, range(size))
@@ -92,37 +95,34 @@ for generation_size in generation_sizes:
         knn_aug.fit(synthetic_x, synthetic_y)
         pred_after = knn_aug.predict(test_x)
         acc_after = accuracy_score(test_y, pred_after)
-        knn_accuracy_after[generation_size][size] = acc_after
+        knn_accracy_after_gen[size] = acc_after
+    knn_accuracy_after.append(knn_accracy_after_gen)
+    accuracy_after_title.append(f"After Concatenation Accuracy with size of {generation_size}")
 
 # Now create the final summary DataFrame
 summary_data = []
 
-# Iterate over the generation sizes and sample sizes to create rows
-for generation_size in generation_sizes:
-    for size in sample_sizes:
-        summary_data.append([
-            generation_size,
-            size,
-            knn_accuracy_before[generation_size].get(size, 0),
-            knn_accuracy_after[generation_size].get(size, 0)
-        ])
+for size in sample_sizes:
+    summary_data.append([
+        size,
+        knn_accuracy_before[size],
+        *[after[size] for after in knn_accuracy_after]
+    ])
 
 # Create DataFrame for summary
 summary_df = pd.DataFrame(
     summary_data,
-    columns=["Generation Size", "Train Samples", "Real Only Accuracy", "Generated Only"]
+    columns=["Train Samples", "Real Only Accuracy", *accuracy_after_title]
 )
-
+summary_df.to_csv("g_only.csv", index=False)
 # Display the accuracy summary
-display_accuracy_summary(
+display_accuracy_summary_with_more_than_two_bars(
     summary_df, 
     title = "Accuracy Comparisons: Real Datasets v.s. Generated Datasets as input",
-    bar2_name="Generated Only",
-    file_name="../../figure/table/generation_only_accuracy_plot.png"
+    file_name="../../figure/generation_only_accuracy_plot.png"
 )
 save_table_as_image(
     summary_df, 
     title = "Accuracy Comparisons: Real Datasets v.s. Generated Datasets as input",
-    bar2_name="Generated Only",
-    file_name="../../figure/table/generation_only_accuracy.png"
+    file_name="../../figure/generation_only_accuracy.png"
 )
