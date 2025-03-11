@@ -102,7 +102,7 @@ for train_index, val_index in skf.split(X_train, y_train):
     # Generating synthetic data using different methods
     synthetic_methods = {
         'SMOTE': conditional_smote_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
-        'KDE': conditional_kde_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
+        'KDE': conditional_kde_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2], n_components=min(X_train_fold.shape[1] - 1, generation_size - 1)),
         'GMM': conditional_gmm_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
         'GAN': GANs(batch_size, X_val_fold, y_val_fold, y_val_fold)
     }
