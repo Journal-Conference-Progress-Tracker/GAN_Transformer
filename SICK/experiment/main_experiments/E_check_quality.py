@@ -25,6 +25,8 @@ from model.data_augmentation_tech import (
 )
 from transformers import AutoTokenizer
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.multioutput import MultiOutputClassifier
+from sklearn.neighbors import KNeighborsClassifier
 import torch
 from torch.utils.data import Subset
 from datasets import load_from_disk
@@ -94,13 +96,14 @@ for train_index, val_index in skf.split(X_train, y_train):
     y_train_fold, y_val_fold = y_train[train_index], y_train[val_index]
     y_train_text_fold, y_val_text_fold = y_train_text[train_index], y_train_text[val_index]
 
-    att = RandomForestClassifier(n_jobs=-1, n_estimators=50, max_samples=.8)
+
+    att  = MultiOutputClassifier(KNeighborsClassifier(n_neighbors=1, n_jobs=-1, leaf_size=100))
     att.fit(X_train_fold, y_train_text_fold)
     # Generating synthetic data using different methods
     synthetic_methods = {
-        'SMOTE': conditional_smote_sampling(X_val_fold, y_val_fold, generation_size),
-        'KDE': conditional_kde_sampling(X_val_fold, y_val_fold, generation_size),
-        'GMM': conditional_gmm_sampling(X_val_fold, y_val_fold, generation_size),
+        'SMOTE': conditional_smote_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
+        'KDE': conditional_kde_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
+        'GMM': conditional_gmm_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
         'GAN': GANs(batch_size, X_val_fold, y_val_fold, y_val_fold)
     }
 
