@@ -121,15 +121,20 @@ for train_index, val_index in skf.split(X_train, y_train):
     # Evaluating each synthetic data method
     for method_name, (synthetic_x, input_ids_text) in synthetic_methods.items():
         pred = att.predict(synthetic_x)
-        seq_similarity_score = compute_seq_similarity(model, input_ids_text, pred)
+        seq_similarity_score, unaligned, jaccard, true_val, pred_val\
+              = compute_seq_similarity(model, input_ids_text, pred, tokenizer)
 
         # Append results
         summary_data.append({
             'Fold': fold_no,
             'Method': method_name,
             'Sequence Similarity Score': seq_similarity_score,
+            'unaligned Similarity Score': unaligned,
+            'Jaccard Similarity': jaccard,
             'Generation_Size': generation_size,
-            'Sample_Size': len(X_train_fold)
+            'Sample_Size': len(X_train_fold),
+            'True Text': true_val,
+            "Predicted Text": pred_val
         })
 
     fold_no += 1
