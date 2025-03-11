@@ -100,11 +100,22 @@ for train_index, val_index in skf.split(X_train, y_train):
     att  = MultiOutputClassifier(KNeighborsClassifier(n_neighbors=1, n_jobs=-1, leaf_size=100))
     att.fit(X_train_fold, y_train_text_fold)
     # Generating synthetic data using different methods
+    real_loader = xy_to_tensordataset(X_val_fold, y_val_fold, return_loader=True)
+            
     synthetic_methods = {
         'SMOTE': conditional_smote_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
         'KDE': conditional_kde_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2], n_components=min(X_train_fold.shape[1] - 1, generation_size - 1)),
         'GMM': conditional_gmm_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
-        'GAN': GANs(batch_size, X_val_fold, y_val_fold, y_val_fold)
+        'GAN':  GANs(
+                batch_size,
+                X_val_fold,
+                y_val_fold,
+                train_y_full,  # using full training labels as in your original code
+                latent_dim,
+                condition_dim,
+                device,
+                gan_epochs
+            ).generate(real_loader, generation_size)
     }
 
     # Evaluating each synthetic data method
