@@ -1,6 +1,8 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer, util
 
+import torch
+
 def calculate_hit_rate(y_true, y_pred, pad_id=0):
     # Convert to numpy arrays (if not already)
     y_true = np.array(y_true)
@@ -18,9 +20,7 @@ def calculate_hit_rate(y_true, y_pred, pad_id=0):
     hit_rate = hits / total if total > 0 else 0.0
     return hit_rate
 
-
-
-def compute_seq_similarity(model: SentenceTransformer = None, seq_true = None, seq_pred = None):
+def compute_seq_similarity(model: SentenceTransformer = None, seq_true=None, seq_pred=None, device: torch.device = torch.device('cuda')):
     """
     Compute cosine similarity between two sequences of IDs using SentenceTransformer embeddings.
 
@@ -28,12 +28,18 @@ def compute_seq_similarity(model: SentenceTransformer = None, seq_true = None, s
         model (SentenceTransformer): Preloaded SentenceTransformer model.
         seq_true (list[int]): Ground truth sequence of IDs.
         seq_pred (list[int]): Predicted sequence of IDs.
+        device (torch.device): Device to perform computation on ('cpu', 'cuda'). Defaults to automatic selection.
 
     Returns:
         float: Cosine similarity score as a float between 0 and 1.
     """
-    if model == None:        
+    if model is None:
         model = SentenceTransformer('all-MiniLM-L6-v2')
+
+    # Set device explicitly if provided
+    if device is not None:
+        model = model.to(device)
+
     # Convert ID sequences to space-separated strings
     seq_true_tokens = " ".join(map(str, seq_true))
     seq_pred_tokens = " ".join(map(str, seq_pred))
