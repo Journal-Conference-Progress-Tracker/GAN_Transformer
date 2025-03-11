@@ -45,8 +45,8 @@ def compute_seq_similarity(model: SentenceTransformer = None, seq_true=None, seq
     seq_pred_tokens = " ".join(map(str, seq_pred))
 
     # Compute embeddings
-    emb_true = model.encode(seq_true_tokens, convert_to_tensor=True)
-    emb_pred = model.encode(seq_pred_tokens, convert_to_tensor=True)
+    emb_true = model.encode(seq_true_tokens, convert_to_tensor=True, batch_size=32)
+    emb_pred = model.encode(seq_pred_tokens, convert_to_tensor=True, batch_size=32)
 
     # Compute cosine similarity
     cos_sim = util.cos_sim(emb_true, emb_pred).item()

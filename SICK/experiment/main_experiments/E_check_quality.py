@@ -103,10 +103,10 @@ for train_index, val_index in skf.split(X_train, y_train):
     real_loader = xy_to_tensordataset(X_val_fold, y_val_fold, return_loader=True)
             
     synthetic_methods = {
-        'SMOTE': conditional_smote_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
-        'KDE': conditional_kde_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2], n_components=min(X_train_fold.shape[1] - 1, generation_size - 1)),
-        'GMM': conditional_gmm_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2]),
-        'GAN':  GANs(
+        'SMOTE': (conditional_smote_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2])[0], y_val_text_fold),
+        'KDE': (conditional_kde_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2], n_components=min(X_train_fold.shape[1] - 1, generation_size - 1))[0], y_val_text_fold),
+        'GMM': (conditional_gmm_sampling(X_val_fold, y_val_fold, generation_size, condition=[0, 1, 2])[0], y_val_text_fold),
+        'GAN':  (GANs(
                 batch_size,
                 X_val_fold,
                 y_val_fold,
@@ -115,13 +115,13 @@ for train_index, val_index in skf.split(X_train, y_train):
                 condition_dim,
                 device,
                 gan_epochs
-            ).generate(real_loader, generation_size)
+            ).generate(real_loader, generation_size)[0], y_val_text_fold)
     }
 
     # Evaluating each synthetic data method
-    for method_name, (synthetic_x, synthetic_y) in synthetic_methods.items():
+    for method_name, (synthetic_x, input_ids_text) in synthetic_methods.items():
         pred = att.predict(synthetic_x)
-        seq_similarity_score = compute_seq_similarity(model, synthetic_y, pred)
+        seq_similarity_score = compute_seq_similarity(model, input_ids_text, pred)
 
         # Append results
         summary_data.append({
